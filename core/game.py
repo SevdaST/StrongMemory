@@ -4,6 +4,7 @@ import pygame
 # Import project settings (screen size, colors, FPS, etc.)
 import settings
 
+from core.game_state import GameState
 
 class Game:
     """
@@ -21,9 +22,12 @@ class Game:
         Constructor method.
         Runs once when Game object is created.
         """
-
+   
         # Initialize all pygame modules (display, sound, event system, etc.)
         pygame.init()
+
+        # Set initial state of the game
+        self.state = GameState.MENU
 
         # Create the main window using width and height from settings
         self.screen = pygame.display.set_mode(
@@ -48,12 +52,13 @@ class Game:
         # Loop runs while the game is active
         while self.running:
 
+
             # Limit the loop to defined FPS (prevents excessive CPU usage)
             self.clock.tick(settings.FPS)
 
             # Handle user input and system events
             self.handle_events()
-
+            self.update()
             # Draw everything on the screen
             self.draw()
 
@@ -77,6 +82,20 @@ class Game:
 
                 # Stop the main loop
                 self.running = False
+            # --- TEST STATE TRANSITIONS ---
+            if event.type == pygame.KEYDOWN:
+
+                if event.key == pygame.K_1:
+                    self.state = GameState.MENU
+
+                elif event.key == pygame.K_2:
+                    self.state = GameState.PLAYING
+
+                elif event.key == pygame.K_3:
+                    self.state = GameState.LEVEL_COMPLETE
+
+                elif event.key == pygame.K_4:
+                    self.state = GameState.GAME_OVER
 
     def draw(self):
         """
@@ -87,4 +106,6 @@ class Game:
         self.screen.fill(settings.BACKGROUND_COLOR)
 
         # Update the full display surface to the screen
+        
+        print(f"Current State: {self.state.name}")
         pygame.display.flip()
