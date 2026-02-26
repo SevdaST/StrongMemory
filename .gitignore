@@ -1,3 +1,4 @@
 venv/
 __pycache__/
 *.pyc
+Game_Loop_Architectures_Fixed_vs_Variable.pdf
