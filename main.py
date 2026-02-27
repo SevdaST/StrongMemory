@@ -1,17 +1,11 @@
-import pygame  # Import the pygame library togit  use its game development modules
+# Import Game class from core package
+from core.game import Game
 
-pygame.init()  # Initialize all imported pygame modules (display, event, time, etc.)
+# Standard Python entry point check
+if __name__ == "__main__":
 
-screen = pygame.display.set_mode((800, 600))  # Create a window with width=800 and height=600 pixels
-pygame.display.set_caption("StrongMemory")  # Set the window title
+    # Create game object
+    game = Game()
 
-running = True  # Boolean variable to control the main game loop
-
-while running:  # Start the main game loop (runs until running becomes False)
-    
-    for event in pygame.event.get():  # Get all events from the event queue
-        
-        if event.type == pygame.QUIT:  # Check if the user clicked the window close button
-            running = False  # Stop the loop to exit the game
-
-pygame.quit()  # Properly uninitialize pygame and close the window
+    # Start main game loop
+    game.run()

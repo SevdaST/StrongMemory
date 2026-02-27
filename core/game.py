@@ -22,7 +22,7 @@ class Game:
         Constructor method.
         Runs once when Game object is created.
         """
-   
+  
         # Initialize all pygame modules (display, sound, event system, etc.)
         pygame.init()
 
@@ -109,3 +109,14 @@ class Game:
         
         print(f"Current State: {self.state.name}")
         pygame.display.flip()
+        
+    def update(self):
+        """
+        Updates game logic.
+        Currently empty because we haven't implemented gameplay yet.
+        """
+        pass
+
+if __name__ == "__main__":
+    game = Game()
+    game.run()
