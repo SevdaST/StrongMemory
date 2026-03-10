@@ -8,6 +8,10 @@ from core.game_state import GameState
 
 from entities.board import Board
 
+from ui.timer import CountdownTimer
+
+from core.level_manager import LevelManager
+
 class Game:
     """
     Main Game class.
@@ -69,7 +73,12 @@ class Game:
         # Time when the second card was selected
         self.flip_back_start_time = None
 
+        # Create a 60-second countdown timer
+        self.timer = CountdownTimer(15)
        
+        self.level_manager = LevelManager()
+        rows, cols = self.level_manager.get_current_level()
+        self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols)
 
     def run(self):
         """
@@ -82,11 +91,12 @@ class Game:
 
 
             # Limit the loop to defined FPS (prevents excessive CPU usage)
-            self.clock.tick(settings.FPS)
+            #self.clock.tick(settings.FPS)
+            dt = self.clock.tick(settings.FPS) / 1000
 
             # Handle user input and system events
             self.handle_events()
-            self.update()
+            self.update(dt)
             # Draw everything on the screen
             self.draw()
 
@@ -120,12 +130,24 @@ class Game:
 
                 elif event.key == pygame.K_2:
                     self.state = GameState.PLAYING
+                    self.timer.start()
 
                 elif event.key == pygame.K_3:
                     self.state = GameState.LEVEL_COMPLETE
 
                 elif event.key == pygame.K_4:
                     self.state = GameState.GAME_OVER
+
+                elif event.key == pygame.K_r:
+                    self.reset_game()
+
+                elif event.key == pygame.K_n:
+                    if self.state == GameState.LEVEL_COMPLETE:
+                        has_next = self.level_manager.advance_level()
+                        if has_next:
+                            self.load_current_level()
+                        else:
+                            self.state = GameState.GAME_OVER
 
             # --- WEEK 4: CARD CLICK + MATCHING PREPARATION ---
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -189,9 +211,9 @@ class Game:
         # Fill the entire screen with the background color
         self.screen.fill(settings.BACKGROUND_COLOR)
 
-        # ------------------------------
-        # PLAYING STATE
-        # ------------------------------
+            # ------------------------------
+            # PLAYING STATE
+            # ------------------------------
         if self.state == GameState.PLAYING:
 
             # Draw all cards on the board
@@ -204,7 +226,16 @@ class Game:
                 (255, 255, 255)
             )
             self.screen.blit(moves_text, (20, 20))
+            self.timer.draw(self.screen, self.font, (20, 70))
+            level_number = self.level_manager.current_level_index + 1
 
+            level_text = self.font.render(
+                f"Level: {level_number}",
+                True,
+                (255,255,255)
+            )
+
+            self.screen.blit(level_text, (20,120))
         # ------------------------------
         # LEVEL COMPLETE STATE
         # ------------------------------
@@ -223,7 +254,9 @@ class Game:
             )
 
             self.screen.blit(complete_text, complete_rect)
-
+            next_text = self.font.render("Press N for Next Level",True,(255,255,255))
+            next_rect = next_text.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 + 80))
+            self.screen.blit(next_text, next_rect)
         # ------------------------------
         # GAME OVER STATE
         # ------------------------------
@@ -265,50 +298,66 @@ class Game:
         # Update the full display
         pygame.display.flip()
 
-    def update(self):
+    def update(self, dt):
         """
         Updates the game logic.
 
-        Week 4 responsibilities:
-        - Compare two selected cards
-        - Keep matched cards open
-        - Flip unmatched cards back after a short delay
+        Responsibilities:
+        - Update the timer
+        - Compare selected cards
+        - Flip back unmatched cards after a delay
+        - Detect level completion
         """
 
-        # Only run matching logic during gameplay
+        # Only update gameplay while playing
         if self.state != GameState.PLAYING:
             return
 
-        # Do nothing until two cards are selected
-        if self.first_card is None or self.second_card is None:
-            return
-        # Draw move counter
-        moves_text = self.font.render(f"Moves: {self.moves}", True, (255, 255, 255))
-        self.screen.blit(moves_text, (20, 20))
-        # If both selected cards match, keep them open
-        if self.first_card.value == self.second_card.value:
-            self.first_card.is_matched = True
-            self.second_card.is_matched = True
+        # Update countdown timer
+        self.timer.update(dt)
 
-            self.first_card = None
-            self.second_card = None
-            self.board_locked = False
-            self.flip_back_start_time = None
+        # If time runs out, game is over
+        if self.timer.is_finished():
+            self.state = GameState.GAME_OVER
             return
 
-        # If they do not match, wait before flipping them back
-        current_time = pygame.time.get_ticks()
+        # ---------------------------------
+        # Handle card comparison
+        # ---------------------------------
+        if self.first_card is not None and self.second_card is not None:
 
-        if current_time - self.flip_back_start_time >= self.flip_back_delay:
-            self.first_card.flip()
-            self.second_card.flip()
+            # If the two selected cards match
+            if self.first_card.value == self.second_card.value:
 
-            self.first_card = None
-            self.second_card = None
-            self.board_locked = False
-            self.flip_back_start_time = None
-        
+                # Keep both cards permanently open
+                self.first_card.is_matched = True
+                self.second_card.is_matched = True
+
+                # Clear selection state
+                self.first_card = None
+                self.second_card = None
+                self.board_locked = False
+                self.flip_back_start_time = None
+
+            else:
+                # Wait before flipping unmatched cards back
+                current_time = pygame.time.get_ticks()
+
+                if current_time - self.flip_back_start_time >= self.flip_back_delay:
+
+                    # Flip both cards back
+                    self.first_card.flip()
+                    self.second_card.flip()
+
+                    # Clear selection state
+                    self.first_card = None
+                    self.second_card = None
+                    self.board_locked = False
+                    self.flip_back_start_time = None
+
+        # ---------------------------------
         # Check if all cards are matched
+        # ---------------------------------
         all_matched = True
 
         for card in self.board.cards:
@@ -316,10 +365,59 @@ class Game:
                 all_matched = False
                 break
 
-        # If every card is matched, level is complete
         if all_matched:
+            self.timer.stop()
             self.state = GameState.LEVEL_COMPLETE
 
+    def reset_game(self):
+        """
+        Resets the current board with the same grid size.
+        """
+
+        # Create a new board with the current grid size
+        self.board = Board(
+            settings.WIDTH,
+            settings.HEIGHT,
+            self.board.rows,
+            self.board.cols
+        )
+
+        # Reset matching logic
+        self.first_card = None
+        self.second_card = None
+        self.board_locked = False
+        self.flip_back_start_time = None
+
+        # Reset move counter
+        self.moves = 0
+
+        # Reset timer
+        self.timer.reset()
+        self.timer.start()
+
+        # Return to PLAYING state
+        self.state = GameState.PLAYING
+
+    def load_current_level(self):
+        """
+        Loads the board for the current level.
+        """
+
+        rows, cols = self.level_manager.get_current_level()
+
+        self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols)
+
+        self.first_card = None
+        self.second_card = None
+        self.board_locked = False
+        self.flip_back_start_time = None
+
+        self.moves = 0
+
+        self.timer.reset()
+        self.timer.start()
+
+        self.state = GameState.PLAYING
 if __name__ == "__main__":
     game = Game()
     game.run()
