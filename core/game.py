@@ -1,15 +1,11 @@
 # Import pygame library for game development functionality
 import pygame
-
 # Import project settings (screen size, colors, FPS, etc.)
 import settings
-
 from core.game_state import GameState
-
 from entities.board import Board
-
 from ui.timer import CountdownTimer
-
+from core.difficulty import Difficulty
 from core.level_manager import LevelManager
 
 class Game:
@@ -31,7 +27,8 @@ class Game:
   
         # Initialize all pygame modules (display, sound, event system, etc.)
         pygame.init()
-
+        # Current difficulty setting
+        self.difficulty = Difficulty.EASY
         # Set initial state of the game
         self.state = GameState.MENU
 
@@ -53,7 +50,7 @@ class Game:
         self.running = True
 
         self.font = pygame.font.SysFont(None, 48)
-
+        self.hud_font = pygame.font.SysFont(None, 24)
         # Stores the first selected card
         self.first_card = None
 
@@ -73,8 +70,8 @@ class Game:
         # Time when the second card was selected
         self.flip_back_start_time = None
 
-        # Create a 60-second countdown timer
-        self.timer = CountdownTimer(15)
+        # Create a countdown timer based on difficulty
+        self.timer = CountdownTimer(self.get_time_for_difficulty())
        
         self.level_manager = LevelManager()
         rows, cols = self.level_manager.get_current_level()
@@ -103,16 +100,26 @@ class Game:
         # When loop exits, properly close pygame
         pygame.quit()
 
+    def get_time_for_difficulty(self) -> int:
+        """
+        Returns the starting time based on the selected difficulty.
+        """
+        if self.difficulty == Difficulty.EASY:
+            return 60
+        elif self.difficulty == Difficulty.MEDIUM:
+            return 45
+        elif self.difficulty == Difficulty.HARD:
+            return 30
+        return 60
+    
     def handle_events(self):
         """
         Handles all user and system events.
-
         Examples:
         - Window close
         - Keyboard input
         - Mouse input
         """
-
         # Get all events from pygame event queue
         for event in pygame.event.get():
 
@@ -148,7 +155,14 @@ class Game:
                             self.load_current_level()
                         else:
                             self.state = GameState.GAME_OVER
+                elif event.key == pygame.K_q:
+                    self.difficulty = Difficulty.EASY
 
+                elif event.key == pygame.K_w:
+                        self.difficulty = Difficulty.MEDIUM
+
+                elif event.key == pygame.K_e:
+                        self.difficulty = Difficulty.HARD
             # --- WEEK 4: CARD CLICK + MATCHING PREPARATION ---
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
 
@@ -220,39 +234,26 @@ class Game:
             self.board.draw_cards(self.screen, self.font)
 
             # Draw move counter in the top-left corner
-            moves_text = self.font.render(
-                f"Moves: {self.moves}",
-                True,
-                (255, 255, 255)
-            )
+            moves_text = self.hud_font.render(f"Moves: {self.moves}",True,(255, 255, 255) )
             self.screen.blit(moves_text, (20, 20))
-            self.timer.draw(self.screen, self.font, (20, 70))
+            self.timer.draw(self.screen, self.hud_font, (150, 20))
+
             level_number = self.level_manager.current_level_index + 1
+            level_text = self.hud_font.render(f"Level: {level_number}",True,(255,255,255))
+            difficulty_text = self.hud_font.render(f"Difficulty: {self.difficulty.value}", True,(255, 255, 255))
 
-            level_text = self.font.render(
-                f"Level: {level_number}",
-                True,
-                (255,255,255)
-            )
-
-            self.screen.blit(level_text, (20,120))
+            self.screen.blit(difficulty_text, (250, 20))
+            self.screen.blit(level_text, (500,20))
         # ------------------------------
         # LEVEL COMPLETE STATE
         # ------------------------------
         elif self.state == GameState.LEVEL_COMPLETE:
 
             # Create a message for level completion
-            complete_text = self.font.render(
-                "Level Complete!",
-                True,
-                (255, 255, 255)
-            )
+            complete_text = self.font.render("Level Complete!",True,(255, 255, 255))
 
             # Center the message on the screen
-            complete_rect = complete_text.get_rect(
-                center=(settings.WIDTH // 2, settings.HEIGHT // 2)
-            )
-
+            complete_rect = complete_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2))
             self.screen.blit(complete_text, complete_rect)
             next_text = self.font.render("Press N for Next Level",True,(255,255,255))
             next_rect = next_text.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 + 80))
@@ -263,11 +264,7 @@ class Game:
         elif self.state == GameState.GAME_OVER:
 
             # Create a game over message
-            game_over_text = self.font.render(
-                "Game Over",
-                True,
-                (255, 255, 255)
-            )
+            game_over_text = self.font.render("Game Over",True,(255, 255, 255))
 
             # Center the message on the screen
             game_over_rect = game_over_text.get_rect(
@@ -275,6 +272,7 @@ class Game:
             )
 
             self.screen.blit(game_over_text, game_over_rect)
+            next_text = self.font.render("Press N for Next Level",True,(255,255,255))
 
         # ------------------------------
         # MENU STATE
@@ -282,11 +280,7 @@ class Game:
         elif self.state == GameState.MENU:
 
             # Simple menu text
-            menu_text = self.font.render(
-                "Press 2 to Start Playing",
-                True,
-                (255, 255, 255)
-            )
+            menu_text = self.font.render("Press 2 to Start Playing", True, (255, 255, 255))
 
             # Center the menu text
             menu_rect = menu_text.get_rect(
@@ -375,12 +369,7 @@ class Game:
         """
 
         # Create a new board with the current grid size
-        self.board = Board(
-            settings.WIDTH,
-            settings.HEIGHT,
-            self.board.rows,
-            self.board.cols
-        )
+        self.board = Board(settings.WIDTH,settings.HEIGHT,self.board.rows,self.board.cols)
 
         # Reset matching logic
         self.first_card = None
@@ -392,7 +381,7 @@ class Game:
         self.moves = 0
 
         # Reset timer
-        self.timer.reset()
+        self.timer = CountdownTimer(self.get_time_for_difficulty())
         self.timer.start()
 
         # Return to PLAYING state
