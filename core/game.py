@@ -77,6 +77,21 @@ class Game:
         rows, cols = self.level_manager.get_current_level()
         self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols)
 
+        # Stores the player's current score
+        self.score = 0
+
+    def calculate_score(self) -> int:
+        """
+        Calculates the player's score based on level, remaining time, and moves.
+        """
+
+        level_number = self.level_manager.current_level_index + 1
+        time_bonus = int(self.timer.time_left * 10)
+        move_penalty = self.moves * 5
+        level_bonus = level_number * 100
+
+        return level_bonus + time_bonus - move_penalty
+    
     def run(self):
         """
         Main game loop.
@@ -115,28 +130,34 @@ class Game:
     def handle_events(self):
         """
         Handles all user and system events.
-        Examples:
-        - Window close
-        - Keyboard input
-        - Mouse input
+
+        Responsibilities:
+        - Close the window
+        - Handle keyboard input
+        - Handle mouse input
+        - Manage menu, gameplay, restart, and level progression
         """
-        # Get all events from pygame event queue
+
+        # Read all events from pygame's event queue
         for event in pygame.event.get():
 
-            # If user clicks the window close button
+            # ------------------------------
+            # WINDOW CLOSE
+            # ------------------------------
             if event.type == pygame.QUIT:
 
                 # Stop the main loop
                 self.running = False
 
-            # --- TEST STATE TRANSITIONS ---
+            # ------------------------------
+            # KEYBOARD INPUT
+            # ------------------------------
             elif event.type == pygame.KEYDOWN:
 
-                if event.key == pygame.K_1:
-                    self.state = GameState.MENU
-
-                elif event.key == pygame.K_2:
-                    self.state = GameState.PLAYING
+                # --- DEBUG / STATE TEST KEYS ---
+                if event.key == pygame.K_1: self.state = GameState.MENU
+                elif event.key == pygame.K_2: 
+                    self.state = GameState.PLAYING 
                     self.timer.start()
 
                 elif event.key == pygame.K_3:
@@ -145,32 +166,69 @@ class Game:
                 elif event.key == pygame.K_4:
                     self.state = GameState.GAME_OVER
 
-                elif event.key == pygame.K_r:
-                    self.reset_game()
+                # --- START GAME FROM MENU ---
+                elif event.key == pygame.K_RETURN:
+                    if self.state == GameState.MENU:
 
-                elif event.key == pygame.K_n:
-                    if self.state == GameState.LEVEL_COMPLETE:
-                        has_next = self.level_manager.advance_level()
-                        if has_next:
-                            self.load_current_level()
-                        else:
-                            self.state = GameState.GAME_OVER
+                        # Reset timer based on selected difficulty
+                        self.timer = CountdownTimer(self.get_time_for_difficulty())
+                        self.timer.start()
+
+                        # Start playing
+                        self.state = GameState.PLAYING
+
+                # --- DIFFICULTY SELECTION ---
                 elif event.key == pygame.K_q:
                     self.difficulty = Difficulty.EASY
 
+                    # Recreate timer with new difficulty time
+                    self.timer = CountdownTimer(self.get_time_for_difficulty())
+
                 elif event.key == pygame.K_w:
-                        self.difficulty = Difficulty.MEDIUM
+                    self.difficulty = Difficulty.MEDIUM
+
+                    # Recreate timer with new difficulty time
+                    self.timer = CountdownTimer(self.get_time_for_difficulty())
 
                 elif event.key == pygame.K_e:
-                        self.difficulty = Difficulty.HARD
-            # --- WEEK 4: CARD CLICK + MATCHING PREPARATION ---
+                    self.difficulty = Difficulty.HARD
+
+                    # Recreate timer with new difficulty time
+                    self.timer = CountdownTimer(self.get_time_for_difficulty())
+
+                # --- RESTART CURRENT BOARD ---
+                elif event.key == pygame.K_r:
+                    self.reset_game()
+
+                # --- GO BACK TO MENU ---
+                elif event.key == pygame.K_m:
+                    self.state = GameState.MENU
+                    self.timer.stop()
+
+                # --- NEXT LEVEL ---
+                elif event.key == pygame.K_n:
+
+                    # Only allow next level after completing the current one
+                    if self.state == GameState.LEVEL_COMPLETE:
+
+                        has_next_level = self.level_manager.advance_level()
+
+                        if has_next_level:
+                            self.load_current_level()
+                        else:
+                            # No more levels left
+                            self.state = GameState.GAME_OVER
+
+            # ------------------------------
+            # MOUSE INPUT
+            # ------------------------------
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
 
-                # Only allow clicking cards while playing
+                # Only allow card clicks while playing
                 if self.state != GameState.PLAYING:
                     continue
 
-                # Do not allow clicks while the board is locked
+                # Prevent clicking while waiting for unmatched cards to flip back
                 if self.board_locked:
                     continue
 
@@ -180,37 +238,38 @@ class Game:
                 # Check which card was clicked
                 for card in self.board.cards:
 
-                    # Check if mouse click is inside this card
-                    if card.contains_point(mouse_pos):
+                    # Ignore if click is not inside this card
+                    if not card.contains_point(mouse_pos):
+                        continue
 
-                        # Do not allow clicking matched cards
-                        if card.is_matched:
-                            break
-
-                        # Do not allow clicking an already flipped card
-                        if card.is_flipped:
-                            break
-
-                        # Flip the clicked card
-                        card.flip()
-
-                        # Save as first selected card
-                        if self.first_card is None:
-                            self.first_card = card
-
-                        # Save as second selected card, count the move, and lock the board
-                        elif self.second_card is None:
-                            self.second_card = card
-
-                            # One move is completed when the second card is selected
-                            self.moves += 1
-
-                            # Lock the board until cards are compared
-                            self.board_locked = True
-                            self.flip_back_start_time = pygame.time.get_ticks()
-
-                        # Stop after handling one clicked card
+                    # Do not allow clicking matched cards
+                    if card.is_matched:
                         break
+
+                    # Do not allow clicking an already flipped card
+                    if card.is_flipped:
+                        break
+
+                    # Flip the clicked card
+                    card.flip()
+
+                    # Save as first selected card
+                    if self.first_card is None:
+                        self.first_card = card
+
+                    # Save as second selected card
+                    elif self.second_card is None:
+                        self.second_card = card
+
+                        # One move is completed when the second card is selected
+                        self.moves += 1
+
+                        # Lock the board until comparison is completed
+                        self.board_locked = True
+                        self.flip_back_start_time = pygame.time.get_ticks()
+
+                    # Stop after handling the clicked card
+                    break
     def draw(self):
         """
         Draw everything on the screen.
@@ -241,8 +300,13 @@ class Game:
             level_number = self.level_manager.current_level_index + 1
             level_text = self.hud_font.render(f"Level: {level_number}",True,(255,255,255))
             difficulty_text = self.hud_font.render(f"Difficulty: {self.difficulty.value}", True,(255, 255, 255))
+            # Calculate live score during gameplay
+            live_score = self.calculate_score()
 
-            self.screen.blit(difficulty_text, (250, 20))
+            score_text = self.hud_font.render(f"Score: {live_score}",True,(255, 255, 255))
+            self.screen.blit(score_text, (600, 20))
+
+            self.screen.blit(difficulty_text, (300, 20))
             self.screen.blit(level_text, (500,20))
         # ------------------------------
         # LEVEL COMPLETE STATE
@@ -258,6 +322,13 @@ class Game:
             next_text = self.font.render("Press N for Next Level",True,(255,255,255))
             next_rect = next_text.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 + 80))
             self.screen.blit(next_text, next_rect)
+
+            score_text = self.font.render(f"Score: {self.score}", True,(255, 255, 255))
+            score_rect = score_text.get_rect(center=((settings.WIDTH // 2)-40, (settings.HEIGHT // 2)-80))
+            self.screen.blit(score_text, score_rect)
+
+            score_text = self.hud_font.render(f"Score: {self.score}",True,(255, 255, 255))
+            self.screen.blit(score_text, (320, 20))
         # ------------------------------
         # GAME OVER STATE
         # ------------------------------
@@ -265,29 +336,32 @@ class Game:
 
             # Create a game over message
             game_over_text = self.font.render("Game Over",True,(255, 255, 255))
-
+            game_exit_text = self.font.render("To exit press 0",True,(255,255,255))
             # Center the message on the screen
-            game_over_rect = game_over_text.get_rect(
-                center=(settings.WIDTH // 2, settings.HEIGHT // 2)
-            )
-
+            game_over_rect = game_over_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2))
+            game_exit_rect = game_exit_text.get_rect(center=((settings.WIDTH // 2)+30, (settings.HEIGHT // 2)+60))
             self.screen.blit(game_over_text, game_over_rect)
+            self.screen.blit(game_exit_text, game_exit_rect)
             next_text = self.font.render("Press N for Next Level",True,(255,255,255))
 
         # ------------------------------
         # MENU STATE
         # ------------------------------
+      
+
         elif self.state == GameState.MENU:
 
-            # Simple menu text
-            menu_text = self.font.render("Press 2 to Start Playing", True, (255, 255, 255))
+            title = self.font.render("Memory Game", True,(255,255,255))
+            start_text = self.font.render("Press ENTER to Start", True, (255,255,255))
+            difficulty_text = self.font.render(f"Difficulty: {self.difficulty.value}",True,(255,255,255))
 
-            # Center the menu text
-            menu_rect = menu_text.get_rect(
-                center=(settings.WIDTH // 2, settings.HEIGHT // 2)
-            )
+            title_rect = title.get_rect(center=(settings.WIDTH//2,200))
+            start_rect = start_text.get_rect(center=(settings.WIDTH//2,300))
+            diff_rect = difficulty_text.get_rect(center=(settings.WIDTH//2,350))
 
-            self.screen.blit(menu_text, menu_rect)
+            self.screen.blit(title,title_rect)
+            self.screen.blit(start_text,start_rect)
+            self.screen.blit(difficulty_text,diff_rect)
 
         # Update the full display
         pygame.display.flip()
@@ -309,12 +383,13 @@ class Game:
 
         # Update countdown timer
         self.timer.update(dt)
+        # Update current score during gameplay
+        self.score = self.calculate_score()
 
         # If time runs out, game is over
         if self.timer.is_finished():
             self.state = GameState.GAME_OVER
             return
-
         # ---------------------------------
         # Handle card comparison
         # ---------------------------------
@@ -360,6 +435,7 @@ class Game:
                 break
 
         if all_matched:
+            self.score = self.calculate_score()
             self.timer.stop()
             self.state = GameState.LEVEL_COMPLETE
 
@@ -407,6 +483,30 @@ class Game:
         self.timer.start()
 
         self.state = GameState.PLAYING
+    def calculate_score(self) -> int:
+        """
+        Calculates the player's score.
+
+        Score formula:
+        - level bonus increases with level number
+        - remaining time gives bonus points
+        - more moves reduce the score
+        """
+
+        # Current level number starts from 1
+        level_number = self.level_manager.current_level_index + 1
+
+        # Bonus for reaching higher levels
+        level_bonus = level_number * 100
+
+        # Bonus for remaining time
+        time_bonus = int(self.timer.time_left * 10)
+
+        # Penalty for using too many moves
+        move_penalty = self.moves * 5
+
+        # Final score
+        return level_bonus + time_bonus - move_penalty
 if __name__ == "__main__":
     game = Game()
     game.run()
