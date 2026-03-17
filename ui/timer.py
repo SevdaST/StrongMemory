@@ -6,6 +6,11 @@ class CountdownTimer:
         """
         Creates a countdown timer.
         total_seconds -> starting time in seconds
+
+        oyun süresini başlatmak
+        geri saymak
+        bitince game over tetiklemek
+        ekranda süreyi göstermek
         """
         # Store the starting time
         self.total_seconds = total_seconds
@@ -51,7 +56,7 @@ class CountdownTimer:
             Example: Time: 37
         """
         # Convert float to integer for cleaner display
-        return f"Time: {int(self.time_left)}"
+        return f"Time: {int(self.time_left)}" # f ile krana {} içindeki değeri yazdırılır
 
     def draw(self, screen: pygame.Surface, font: pygame.font.Font, position: tuple[int, int]) -> None:
         """Draws the timer text on the screen.

@@ -7,6 +7,9 @@ class GameState(Enum):
     Represents the current state of the game.
 
     Each member defines a distinct phase of gameplay.
+
+    Enum, Python’daki enumeration yapisidir.    Sabit ve anlamli isimler tanimlamak için kullanilir
+
     """
 
     # Main menu screen

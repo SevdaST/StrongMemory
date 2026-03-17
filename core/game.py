@@ -20,9 +20,8 @@ class Game:
     """
 
     def __init__(self):
-        """
-        Constructor method.
-        Runs once when Game object is created.
+        """ Constructor method.
+            Runs once when Game object is created.
         """
   
         # Initialize all pygame modules (display, sound, event system, etc.)
@@ -30,7 +29,8 @@ class Game:
         # Current difficulty setting
         self.difficulty = Difficulty.EASY
         # Set initial state of the game
-        self.state = GameState.MENU
+       
+        self.state = GameState.MENU   
 
         # Create the main window using width and height from settings
         self.screen = pygame.display.set_mode(

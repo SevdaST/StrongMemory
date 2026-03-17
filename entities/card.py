@@ -1,11 +1,10 @@
 import pygame
 
-
+#Card sınıfı oyundaki tek bir memory kartını temsil eder. Yani her kart için bu sınıftan bir nesne oluşturulur.
 class Card:
-    def __init__(self, value: int, rect: pygame.Rect):
+    def __init__(self, value: int, rect: pygame.Rect): #value	kartın değeri (eşleşme için)**rect	kartın ekrandaki konumu
         """
         Represents a single memory card.
-
         value -> number used for matching
         rect  -> position and size of the card on the screen
         """
@@ -20,7 +19,7 @@ class Card:
         self.is_flipped = False
         self.is_matched = False
 
-    def contains_point(self, pos: tuple[int, int]) -> bool:
+    def contains_point(self, pos: tuple[int, int]) -> bool:  # bu metod kartın üstüne tıklanıp tıklanmadığını kontrol eder
         """
         Check if a mouse click is inside this card.
         """
@@ -46,26 +45,27 @@ class Card:
         1) Face-down
         2) Face-up
         3) Matched
+       *********** state-based rendering kullanılıyor.
         """
 
-        # If card is matched, draw it in dim color
+        # If card is matched, draw it in dim color ****eşleşmişse koyu gri çiz
         if self.is_matched:
             pygame.draw.rect(screen, (70, 70, 70), self.rect)
             pygame.draw.rect(screen, (120, 120, 120), self.rect, 2)
             return
 
-        # Face-down card
+        # Face-down card ***kapalı
         if not self.is_flipped:
             pygame.draw.rect(screen, (40, 40, 40), self.rect)
-            pygame.draw.rect(screen, (200, 200, 200), self.rect, 2)
+            pygame.draw.rect(screen, (200, 200, 200), self.rect, 2) #pygame.draw.rect(surface, color, rect, borderwidth)
             return
 
-        # Face-up card
-        pygame.draw.rect(screen, (220, 220, 220), self.rect)
+        # Face-up card ***açık kart için border lı rect çiz içine de card value çiz
+        pygame.draw.rect(screen, (250, 250, 250), self.rect)   #(R,G,B) (255,255,255) max deger beyaz (0,0,0) min deger siyah
         pygame.draw.rect(screen, (20, 20, 20), self.rect, 2)
 
         # Draw card value in the center
         text = font.render(str(self.value), True, (20, 20, 20))
-        text_rect = text.get_rect(center=self.rect.center)
+        text_rect = text.get_rect(center=self.rect.center) #yazıyı kartın ortasına yazmak için
 
-        screen.blit(text, text_rect)
+        screen.blit(text, text_rect) # varolan surface üzerine value surface i yazıyoruz. kart rect in üzerine text rect yazdırıyoruz
