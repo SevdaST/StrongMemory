@@ -31,8 +31,8 @@ class Game:
         # Set initial state of the game
         self.is_paused = False
         #self.game_state = "playing"
-        #self.state = GameState.MENU   
-        self.state = GameState.PLAYING
+        self.state = GameState.MENU   
+        #self.state = GameState.PLAYING
 
         # Create the main window using width and height from settings
         self.screen = pygame.display.set_mode(
@@ -171,11 +171,9 @@ class Game:
                 elif event.key == pygame.K_RETURN:
                     if self.state == GameState.MENU:
 
-                        # Reset timer based on selected difficulty
                         self.timer = CountdownTimer(self.get_time_for_difficulty())
                         self.timer.start()
 
-                        # Start playing
                         self.state = GameState.PLAYING
 
                 # --- DIFFICULTY SELECTION ---
