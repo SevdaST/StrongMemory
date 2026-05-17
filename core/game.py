@@ -208,19 +208,21 @@ class Game:
 
                 # --- NEXT LEVEL ---
                 elif event.key == pygame.K_n:
-
-                    # Only allow next level after completing the current one
+       
                     if self.state == GameState.LEVEL_COMPLETE:
 
                         has_next_level = self.level_manager.advance_level()
 
                         if has_next_level:
                             self.load_current_level()
+
                         else:
-                            # No more levels left
                             self.state = GameState.GAME_OVER
+                # --- PAuse ---            
+                elif event.key == pygame.K_ESCAPE:
+
                     if self.state == GameState.PLAYING:
-                      self.state = GameState.PAUSED
+                        self.state = GameState.PAUSED
 
                     elif self.state == GameState.PAUSED:
                         self.state = GameState.PLAYING
@@ -228,9 +230,9 @@ class Game:
             # MOUSE INPUT
             # ------------------------------
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                print(self.state)
+
             # Only allow clicks while playing
-                print("mouse detected")
+                
                 if self.state != GameState.PLAYING:
                     continue
                 # Prevent clicking while waiting
@@ -292,7 +294,7 @@ class Game:
             # ------------------------------
             # PLAYING STATE
             # ------------------------------
-        if self.state == GameState.PLAYING:
+        if self.state == GameState.PLAYING or self.state == GameState.PAUSED:
 
             # Draw all cards on the board
             self.board.draw_cards(self.screen, self.font)
@@ -368,18 +370,20 @@ class Game:
             self.screen.blit(start_text,start_rect)
             self.screen.blit(difficulty_text,diff_rect)
 
-        if self.is_paused:
+        if self.state == GameState.PAUSED:
             pause_text = self.font.render(
                 "PAUSED",
                 True,
-                (255, 255, 0))
+                (255, 255, 0)
+            )
 
             text_rect = pause_text.get_rect(
-                center=(settings.WIDTH // 2, settings.HEIGHT // 2) )
+                center=(settings.WIDTH // 2, settings.HEIGHT // 2)
+            )
 
             self.screen.blit(pause_text, text_rect)
-        # Update the full display
         
+        # Update the full display
         if self.state == GameState.WON:
 
             overlay = pygame.Surface((settings.WIDTH, settings.HEIGHT))
@@ -538,10 +542,11 @@ class Game:
 
         self.moves = 0
 
-        self.timer.reset()
+        self.timer = CountdownTimer(self.get_time_for_difficulty())
         self.timer.start()
 
         self.state = GameState.PLAYING
+
     def calculate_score(self) -> int:
         """
         Calculates the player's score.

@@ -27,3 +27,5 @@ class GameState(Enum):
     WON = 5
 
     LOST = 6
+
+    PAUSED = 7
