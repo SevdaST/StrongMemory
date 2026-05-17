@@ -23,3 +23,7 @@ class GameState(Enum):
 
     # Player lost (time over etc.)
     GAME_OVER = 4
+
+    WON = 5
+
+    LOST = 6

@@ -62,5 +62,11 @@ class CountdownTimer:
         """Draws the timer text on the screen.
            position -> (x, y) position of the text """
 
-        timer_text = font.render(self.get_display_text(), True, (255, 255, 255))
+        color = (255, 0, 0) if self.time_left <= 10 else (255, 255, 255)
+
+        timer_text = font.render(
+            self.get_display_text(),
+            True,
+            color
+        )
         screen.blit(timer_text, position)

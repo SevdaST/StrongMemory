@@ -29,8 +29,10 @@ class Game:
         # Current difficulty setting
         self.difficulty = Difficulty.EASY
         # Set initial state of the game
-       
-        self.state = GameState.MENU   
+        self.is_paused = False
+        #self.game_state = "playing"
+        #self.state = GameState.MENU   
+        self.state = GameState.PLAYING
 
         # Create the main window using width and height from settings
         self.screen = pygame.display.set_mode(
@@ -101,7 +103,6 @@ class Game:
         # Loop runs while the game is active
         while self.running:
 
-
             # Limit the loop to defined FPS (prevents excessive CPU usage)
             #self.clock.tick(settings.FPS)
             dt = self.clock.tick(settings.FPS) / 1000
@@ -137,7 +138,7 @@ class Game:
         - Handle mouse input
         - Manage menu, gameplay, restart, and level progression
         """
-
+        #print("events working")
         # Read all events from pygame's event queue
         for event in pygame.event.get():
 
@@ -218,58 +219,62 @@ class Game:
                         else:
                             # No more levels left
                             self.state = GameState.GAME_OVER
+                    if self.state == GameState.PLAYING:
+                      self.state = GameState.PAUSED
 
+                    elif self.state == GameState.PAUSED:
+                        self.state = GameState.PLAYING
             # ------------------------------
             # MOUSE INPUT
             # ------------------------------
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-
-                # Only allow card clicks while playing
+                print(self.state)
+            # Only allow clicks while playing
+                print("mouse detected")
                 if self.state != GameState.PLAYING:
                     continue
-
-                # Prevent clicking while waiting for unmatched cards to flip back
+                # Prevent clicking while waiting
                 if self.board_locked:
                     continue
 
                 # Get mouse position
                 mouse_pos = event.pos
 
-                # Check which card was clicked
+                # Check clicked card
                 for card in self.board.cards:
 
-                    # Ignore if click is not inside this card
+                    # Ignore if mouse is not inside
                     if not card.contains_point(mouse_pos):
                         continue
 
-                    # Do not allow clicking matched cards
+                    # Ignore matched cards
                     if card.is_matched:
                         break
 
-                    # Do not allow clicking an already flipped card
+                    # Ignore already flipped cards
                     if card.is_flipped:
                         break
 
-                    # Flip the clicked card
+                    # Flip card
                     card.flip()
 
-                    # Save as first selected card
+                    # Save first card
                     if self.first_card is None:
                         self.first_card = card
 
-                    # Save as second selected card
+                    # Save second card
                     elif self.second_card is None:
+
                         self.second_card = card
 
-                        # One move is completed when the second card is selected
                         self.moves += 1
 
-                        # Lock the board until comparison is completed
                         self.board_locked = True
+
                         self.flip_back_start_time = pygame.time.get_ticks()
 
-                    # Stop after handling the clicked card
                     break
+   
     def draw(self):
         """
         Draw everything on the screen.
@@ -363,7 +368,50 @@ class Game:
             self.screen.blit(start_text,start_rect)
             self.screen.blit(difficulty_text,diff_rect)
 
+        if self.is_paused:
+            pause_text = self.font.render(
+                "PAUSED",
+                True,
+                (255, 255, 0))
+
+            text_rect = pause_text.get_rect(
+                center=(settings.WIDTH // 2, settings.HEIGHT // 2) )
+
+            self.screen.blit(pause_text, text_rect)
         # Update the full display
+        
+        if self.state == GameState.WON:
+
+            overlay = pygame.Surface((settings.WIDTH, settings.HEIGHT))
+            overlay.set_alpha(180)
+            overlay.fill((0, 0, 0))
+
+            self.screen.blit(overlay, (0, 0))
+
+            text = self.font.render("YOU WIN!", True, (255, 215, 0))
+
+            text_rect = text.get_rect(
+                center=(settings.WIDTH // 2, settings.HEIGHT // 2)
+            )
+
+            self.screen.blit(text, text_rect)
+
+        if self.state == GameState.LOST:
+
+            overlay = pygame.Surface((settings.WIDTH, settings.HEIGHT))
+            overlay.set_alpha(180)
+            overlay.fill((0, 0, 0))
+
+            self.screen.blit(overlay, (0, 0))
+
+            text = self.font.render("GAME OVER", True, (255, 80, 80))
+
+            text_rect = text.get_rect(
+                center=(settings.WIDTH // 2, settings.HEIGHT // 2)
+            )
+
+            self.screen.blit(text, text_rect)
+
         pygame.display.flip()
 
     def update(self, dt):
@@ -376,13 +424,24 @@ class Game:
         - Flip back unmatched cards after a delay
         - Detect level completion
         """
-
-        # Only update gameplay while playing
         if self.state != GameState.PLAYING:
             return
+        mouse_pos = pygame.mouse.get_pos()
+
+        for card in self.board.cards:
+            card.is_hovered = card.contains_point(mouse_pos)
+              # Only update gameplay while playing
+            if self.state != GameState.PLAYING:
+                return
 
         # Update countdown timer
         self.timer.update(dt)
+        if all(card.is_matched for card in self.board.cards):
+            self.game_state = GameState.WON
+        if self.timer.time_left <= 0:
+            self.game_state = GameState.LOST
+        for card in self.board.cards:
+            card.update(dt)
         # Update current score during gameplay
         self.score = self.calculate_score()
 
