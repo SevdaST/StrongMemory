@@ -2,6 +2,7 @@
 import pygame
 import random
 import settings
+import math
 from core.game_state import GameState
 from entities.board import Board
 from ui.timer import CountdownTimer
@@ -187,26 +188,30 @@ class Game:
                         
                 # --- NEXT LEVEL ---
                 elif event.key == pygame.K_n:
-       
+
                     if self.state == GameState.LEVEL_COMPLETE:
 
                         has_next_level = self.level_manager.advance_level()
 
+                        # Same difficulty next level
                         if has_next_level:
+
                             self.load_current_level()
 
+                        # Difficulty completed
                         else:
-                            self.state = GameState.GAME_OVER
-                # --- PAuse ---            
-                elif event.key == pygame.K_ESCAPE:
-                    if self.state == GameState.MENU:
-                        self.running = False
-                    elif self.state == GameState.PLAYING:
-                        self.state = GameState.PAUSED
-                    elif self.state == GameState.PAUSED:
-                        self.state = GameState.PLAYING
-                    elif self.state == GameState.GAME_OVER:
-                        self.running = False
+
+                            if self.difficulty == Difficulty.EASY:
+                                self.difficulty = Difficulty.MEDIUM
+
+                            elif self.difficulty == Difficulty.MEDIUM:
+                                self.difficulty = Difficulty.HARD
+
+                            # Reset levels for new difficulty
+                            self.level_manager = LevelManager()
+
+                            self.load_current_level()
+                                
             # ------------------------------
             # MOUSE INPUT
             # ------------------------------
@@ -333,36 +338,71 @@ class Game:
         # ------------------------------
         # LEVEL COMPLETE STATE
         # ------------------------------
+
         elif self.state == GameState.LEVEL_COMPLETE:
 
+            is_last_level = self.level_manager.current_level_index == len(self.level_manager.levels) - 1
+
             score_text = self.font.render(f"Score: {self.score}", True, (255, 255, 0))
-            score_rect = score_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 150))
-            self.screen.blit(score_text, score_rect)
+            self.screen.blit(score_text, score_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 150)))
 
             complete_text = self.font.render("Level Complete!", True, (255, 255, 0))
-            complete_rect = complete_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 70))
-            self.screen.blit(complete_text, complete_rect)
+            self.screen.blit(complete_text, complete_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 70)))
 
-            next_text = self.hud_font.render("Press N for Next Level", True, (255, 255, 0))
-            next_rect = next_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 10))
-            self.screen.blit(next_text, next_rect)
+            if is_last_level:
+
+                congrats_text = self.font.render("Congratulations!", True, (255, 255, 0))
+                self.screen.blit(congrats_text, congrats_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 220)))
+
+                if self.difficulty == Difficulty.EASY:
+                    difficulty_message = "Easy difficulty completed! Press N to move to Medium"
+                elif self.difficulty == Difficulty.MEDIUM:
+                    difficulty_message = "Medium difficulty completed! Press N to move to Hard"
+                else:
+                    difficulty_message = "Hard difficulty completed! You finished the game!"
+
+                pulse = abs(math.sin(pygame.time.get_ticks() * 0.004))
+                glow_color = (255, 255, int(150 + pulse * 105))
+
+                message_text = self.hud_font.render(difficulty_message, True, glow_color)
+                self.screen.blit(message_text, message_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 20)))
+
+                for i in range(8):
+                    x = 120 + i * 140
+                    y = 120 + int(20 * math.sin(pygame.time.get_ticks() * 0.003 + i))
+                    pygame.draw.circle(self.screen, (255, 80, 120), (x, y), 18)
+                    pygame.draw.line(self.screen, (255, 255, 255), (x, y + 18), (x, y + 55), 2)
+
+            else:
+
+                next_text = self.hud_font.render("Press N for Next Level", True, (255, 255, 0))
+                self.screen.blit(next_text, next_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 20)))
 
             menu_text = self.hud_font.render("Press M for Main Menu", True, (255, 255, 255))
-            menu_rect = menu_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 90))
-            self.screen.blit(menu_text, menu_rect)                                 
-                    
+            self.screen.blit(menu_text, menu_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 90)))
         # ------------------------------
         # GAME OVER STATE
         # ------------------------------
         elif self.state == GameState.GAME_OVER:
 
-            # Create a game over message
-            menu_text = self.hud_font.render("Press M for Menu", True, (255,255,255))
-            exit_text = self.hud_font.render("Press ESC to Quit", True, (255,255,255))
-            # Center the message on the screen
-            self.screen.blit(menu_text, menu_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 60)))
-            self.screen.blit(exit_text, exit_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 130)))
+            game_over_text = self.font.render("Game Over", True, (255, 80, 80))
+            self.screen.blit(game_over_text, game_over_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 160)))
 
+            retry_text = self.hud_font.render("Press A to Play Again", True, (255, 255, 0))
+            self.screen.blit(retry_text, retry_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 40)))
+
+            menu_text = self.hud_font.render("Press M for Main Menu", True, (255, 255, 255))
+            self.screen.blit(menu_text, menu_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 20)))
+
+            exit_text = self.hud_font.render("Press Q to Quit", True, (255, 255, 255))
+            self.screen.blit(exit_text, exit_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 80)))
+
+            for i in range(8):
+                x = 120 + i * 140
+                y = 120 + int(20 * math.sin(pygame.time.get_ticks() * 0.003 + i))
+                sad_text = self.font.render(":(", True, (255, 120, 120))
+                self.screen.blit(sad_text, sad_text.get_rect(center=(x, y)))
+                
         # ------------------------------
         # MENU STATE
         # ------------------------------     
