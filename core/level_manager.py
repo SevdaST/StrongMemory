@@ -7,9 +7,8 @@ class LevelManager:
         # Board sizes for each level
         self.levels = [
             (2, 4),
-            (4, 4),
-            (4, 6),
-            (6, 6)
+            (3, 4),
+            (4, 4)
         ]
 
         self.current_level_index = 0

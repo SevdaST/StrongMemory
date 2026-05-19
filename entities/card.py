@@ -2,7 +2,7 @@ import pygame
 
 #Card sınıfı oyundaki tek bir memory kartını temsil eder. Yani her kart için bu sınıftan bir nesne oluşturulur.
 class Card:
-    def __init__(self, value: int, rect: pygame.Rect): #value	kartın değeri (eşleşme için)**rect	kartın ekrandaki konumu
+    def __init__(self,value,rect: pygame.Rect, match_value=None):
         """
         Represents a single memory card.
         value -> number used for matching
@@ -11,6 +11,8 @@ class Card:
         self.is_hovered = False
         # Value used for matching cards later
         self.value = value
+        # Value used for matching logic
+        self.match_value = match_value if match_value is not None else value
 
         # pygame.Rect that defines card position and size
         self.rect = rect
@@ -73,24 +75,23 @@ class Card:
 
             pygame.draw.rect(screen, color, draw_rect)
             pygame.draw.rect(screen, border_color, draw_rect, 2)
-
             return
 
-        # Face-up card ***açık kart için border lı rect çiz içine de card value çiz
-        pygame.draw.rect(screen, (252, 246, 245), draw_rect)   #(R,G,B) (255,255,255) max deger beyaz (0,0,0) min deger siyah
+        pygame.draw.rect(screen, (252, 246, 245), draw_rect)
         pygame.draw.rect(screen, (20, 20, 20), draw_rect, 2)
 
-        # Draw card value in the center
-        text = font.render(str(self.value), True, (20, 20, 20))
-        text_rect = text.get_rect(center=self.rect.center) #yazıyı kartın ortasına yazmak için
+        display_text = str(self.value)
+        render_font = pygame.font.SysFont("Segoe UI Emoji", 42) if any(ord(c) > 1000 for c in display_text) else font
 
-        screen.blit(text, text_rect) # varolan surface üzerine value surface i yazıyoruz. kart rect in üzerine text rect yazdırıyoruz
+        text_surface = render_font.render(display_text, True, (20, 20, 20))
+        text_rect = text_surface.get_rect(center=draw_rect.center)
+        screen.blit(text_surface, text_rect)
 
     def update(self, dt):
 
             if self.is_animating:
 
-                self.flip_animation += 500 * dt
+                self.flip_animation += 800 * dt
 
                 if self.flip_animation >= self.rect.width:
                     self.flip_animation = self.rect.width

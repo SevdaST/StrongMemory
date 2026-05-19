@@ -1,6 +1,6 @@
 # Import pygame library for game development functionality
 import pygame
-# Import project settings (screen size, colors, FPS, etc.)
+import random
 import settings
 from core.game_state import GameState
 from entities.board import Board
@@ -35,15 +35,17 @@ class Game:
         #self.state = GameState.PLAYING
 
         # Create the main window using width and height from settings
-        self.screen = pygame.display.set_mode(
-            (settings.WIDTH, settings.HEIGHT)
-        )
-
+        #self.screen = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT), pygame.FULLSCREEN)
+        self.screen = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
+        settings.WIDTH, settings.HEIGHT = self.screen.get_size()
         # Set the window title
         pygame.display.set_caption("Boost Your Memory")
 
         # create board (GRID)
-        self.board = Board(settings.WIDTH, settings.HEIGHT, rows=2, cols=4)
+        
+        self.level_manager = LevelManager()
+        rows, cols = self.level_manager.get_current_level()
+        self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols, self.difficulty)
 
         # Create a clock object to control frame rate (FPS)
         self.clock = pygame.time.Clock()
@@ -51,8 +53,8 @@ class Game:
         # Control variable for the main game loop
         self.running = True
 
-        self.font = pygame.font.SysFont(None, 48)
-        self.hud_font = pygame.font.SysFont(None, 24)
+        self.font = pygame.font.SysFont(None, 40)
+        self.hud_font = pygame.font.SysFont(None, 28)
         # Stores the first selected card
         self.first_card = None
 
@@ -77,11 +79,14 @@ class Game:
        
         self.level_manager = LevelManager()
         rows, cols = self.level_manager.get_current_level()
-        self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols)
+        self.board = Board(settings.WIDTH, settings.HEIGHT, self.board.rows,self.board.cols, self.difficulty)
 
         # Stores the player's current score
         self.score = 0
-
+        self.marquee_x = settings.WIDTH
+        self.explosions = []
+        self.explosion_timer = 0
+        self.emoji_font = pygame.font.SysFont("Segoe UI Emoji", 32)
     def calculate_score(self) -> int:
         """
         Calculates the player's score based on level, remaining time, and moves.
@@ -155,55 +160,31 @@ class Game:
             # ------------------------------
             elif event.type == pygame.KEYDOWN:
 
-                # --- DEBUG / STATE TEST KEYS ---
-                if event.key == pygame.K_1: self.state = GameState.MENU
-                elif event.key == pygame.K_2: 
-                    self.state = GameState.PLAYING 
-                    self.timer.start()
-
-                elif event.key == pygame.K_3:
-                    self.state = GameState.LEVEL_COMPLETE
-
-                elif event.key == pygame.K_4:
-                    self.state = GameState.GAME_OVER
-
-                # --- START GAME FROM MENU ---
-                elif event.key == pygame.K_RETURN:
+                if event.key == pygame.K_F11:
+                    pygame.display.toggle_fullscreen()
+                 # --- START GAME FROM MENU ---
+                if event.key == pygame.K_RETURN:
                     if self.state == GameState.MENU:
 
                         self.timer = CountdownTimer(self.get_time_for_difficulty())
                         self.timer.start()
 
                         self.state = GameState.PLAYING
-
-                # --- DIFFICULTY SELECTION ---
-                elif event.key == pygame.K_q:
-                    self.difficulty = Difficulty.EASY
-
-                    # Recreate timer with new difficulty time
-                    self.timer = CountdownTimer(self.get_time_for_difficulty())
-
-                elif event.key == pygame.K_w:
-                    self.difficulty = Difficulty.MEDIUM
-
-                    # Recreate timer with new difficulty time
-                    self.timer = CountdownTimer(self.get_time_for_difficulty())
-
-                elif event.key == pygame.K_e:
-                    self.difficulty = Difficulty.HARD
-
-                    # Recreate timer with new difficulty time
-                    self.timer = CountdownTimer(self.get_time_for_difficulty())
-
+               
                 # --- RESTART CURRENT BOARD ---
                 elif event.key == pygame.K_r:
                     self.reset_game()
 
+                elif event.key == pygame.K_q:
+                    if self.state in [GameState.MENU, GameState.PAUSED]:
+                        self.running = False
+
                 # --- GO BACK TO MENU ---
                 elif event.key == pygame.K_m:
-                    self.state = GameState.MENU
-                    self.timer.stop()
-
+                    if self.state in [GameState.PAUSED, GameState.GAME_OVER, GameState.LEVEL_COMPLETE]:
+                        self.timer.stop()
+                        self.state = GameState.MENU
+                        
                 # --- NEXT LEVEL ---
                 elif event.key == pygame.K_n:
        
@@ -218,18 +199,51 @@ class Game:
                             self.state = GameState.GAME_OVER
                 # --- PAuse ---            
                 elif event.key == pygame.K_ESCAPE:
-
-                    if self.state == GameState.PLAYING:
+                    if self.state == GameState.MENU:
+                        self.running = False
+                    elif self.state == GameState.PLAYING:
                         self.state = GameState.PAUSED
-
                     elif self.state == GameState.PAUSED:
                         self.state = GameState.PLAYING
+                    elif self.state == GameState.GAME_OVER:
+                        self.running = False
             # ------------------------------
             # MOUSE INPUT
             # ------------------------------
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
 
-            # Only allow clicks while playing
+                mouse_pos = event.pos
+
+                # Menu clicks
+                if self.state == GameState.MENU:
+
+                    if self.easy_rect and self.easy_rect.collidepoint(mouse_pos):
+                        self.difficulty = Difficulty.EASY
+
+                    elif self.medium_rect and self.medium_rect.collidepoint(mouse_pos):
+                        self.difficulty = Difficulty.MEDIUM
+
+                    elif self.hard_rect and self.hard_rect.collidepoint(mouse_pos):
+                        self.difficulty = Difficulty.HARD
+
+                    elif self.start_rect and self.start_rect.collidepoint(mouse_pos):
+
+                        self.level_manager = LevelManager()
+                        rows, cols = self.level_manager.get_current_level()
+                        self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols, self.difficulty)
+
+                        self.first_card = None
+                        self.second_card = None
+                        self.board_locked = False
+                        self.flip_back_start_time = None
+                        self.moves = 0
+
+                        self.timer = CountdownTimer(self.get_time_for_difficulty())
+                        self.timer.start()
+
+                        self.state = GameState.PLAYING
+
+                    continue
                 
                 if self.state != GameState.PLAYING:
                     continue
@@ -297,6 +311,9 @@ class Game:
             # Draw all cards on the board
             self.board.draw_cards(self.screen, self.font)
 
+            # ✅ Draw HUD panel background FIRST, then blit text on top
+            self.board.draw_hud_panel(self.screen)
+
             # Draw move counter in the top-left corner
             moves_text = self.hud_font.render(f"Moves: {self.moves}",True,(255, 255, 255) )
             self.screen.blit(moves_text, (20, 20))
@@ -318,69 +335,100 @@ class Game:
         # ------------------------------
         elif self.state == GameState.LEVEL_COMPLETE:
 
-            # Create a message for level completion
-            complete_text = self.font.render("Level Complete!",True,(255, 255, 255))
-
-            # Center the message on the screen
-            complete_rect = complete_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2))
-            self.screen.blit(complete_text, complete_rect)
-            next_text = self.font.render("Press N for Next Level",True,(255,255,255))
-            next_rect = next_text.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 + 80))
-            self.screen.blit(next_text, next_rect)
-
-            score_text = self.font.render(f"Score: {self.score}", True,(255, 255, 255))
-            score_rect = score_text.get_rect(center=((settings.WIDTH // 2)-40, (settings.HEIGHT // 2)-80))
+            score_text = self.font.render(f"Score: {self.score}", True, (255, 255, 0))
+            score_rect = score_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 150))
             self.screen.blit(score_text, score_rect)
 
-            score_text = self.hud_font.render(f"Score: {self.score}",True,(255, 255, 255))
-            self.screen.blit(score_text, (320, 20))
+            complete_text = self.font.render("Level Complete!", True, (255, 255, 0))
+            complete_rect = complete_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 70))
+            self.screen.blit(complete_text, complete_rect)
+
+            next_text = self.hud_font.render("Press N for Next Level", True, (255, 255, 0))
+            next_rect = next_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 10))
+            self.screen.blit(next_text, next_rect)
+
+            menu_text = self.hud_font.render("Press M for Main Menu", True, (255, 255, 255))
+            menu_rect = menu_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 90))
+            self.screen.blit(menu_text, menu_rect)                                 
+                    
         # ------------------------------
         # GAME OVER STATE
         # ------------------------------
         elif self.state == GameState.GAME_OVER:
 
             # Create a game over message
-            game_over_text = self.font.render("Game Over",True,(255, 255, 255))
-            game_exit_text = self.font.render("To exit press 0",True,(255,255,255))
+            menu_text = self.hud_font.render("Press M for Menu", True, (255,255,255))
+            exit_text = self.hud_font.render("Press ESC to Quit", True, (255,255,255))
             # Center the message on the screen
-            game_over_rect = game_over_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2))
-            game_exit_rect = game_exit_text.get_rect(center=((settings.WIDTH // 2)+30, (settings.HEIGHT // 2)+60))
-            self.screen.blit(game_over_text, game_over_rect)
-            self.screen.blit(game_exit_text, game_exit_rect)
-            next_text = self.font.render("Press N for Next Level",True,(255,255,255))
+            self.screen.blit(menu_text, menu_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 60)))
+            self.screen.blit(exit_text, exit_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 130)))
 
         # ------------------------------
         # MENU STATE
-        # ------------------------------
-      
+        # ------------------------------     
 
         elif self.state == GameState.MENU:
 
-            title = self.font.render("Memory Game", True,(255,255,255))
-            start_text = self.font.render("Press ENTER to Start", True, (255,255,255))
-            difficulty_text = self.font.render(f"Difficulty: {self.difficulty.value}",True,(255,255,255))
+            mouse_pos = pygame.mouse.get_pos()
 
-            title_rect = title.get_rect(center=(settings.WIDTH//2,200))
-            start_rect = start_text.get_rect(center=(settings.WIDTH//2,300))
-            diff_rect = difficulty_text.get_rect(center=(settings.WIDTH//2,350))
+            title = self.font.render("Welcome to Memory Game",True,(255, 255, 255))
 
-            self.screen.blit(title,title_rect)
-            self.screen.blit(start_text,start_rect)
-            self.screen.blit(difficulty_text,diff_rect)
+            self.screen.blit(title,title.get_rect(center=(settings.WIDTH // 2, 150)))
 
+            # Button rects
+            self.easy_rect = pygame.Rect(settings.WIDTH // 2 - 100, 220, 200, 45)
+            self.medium_rect = pygame.Rect(settings.WIDTH // 2 - 100, 280, 200, 45)
+            self.hard_rect = pygame.Rect(settings.WIDTH // 2 - 100, 340, 200, 45)
+            self.start_rect = pygame.Rect(settings.WIDTH // 2 - 100, 440, 200, 55)
+
+            def draw_button(rect, text, normal_color, hover_color, is_selected=False):
+
+                hovered = rect.collidepoint(mouse_pos)
+                draw_rect = rect.inflate(10, 8) if hovered else rect
+                color = hover_color if hovered else normal_color
+
+                pygame.draw.rect(self.screen, color, draw_rect, border_radius=12)
+
+                if hovered:
+                    pygame.draw.rect(self.screen, (255, 255, 255), draw_rect, 3, border_radius=12)
+
+                if is_selected:
+                    pygame.draw.rect(self.screen, (255, 255, 0), draw_rect, 3, border_radius=12)
+
+                text_surface = self.hud_font.render(text, True, (255, 255, 255))
+                self.screen.blit(text_surface, text_surface.get_rect(center=draw_rect.center))
+                """
+                if is_selected:
+                    check_text = self.hud_font.render("✓", True, (255, 255, 255))
+                    self.screen.blit(check_text, (draw_rect.x + 15, draw_rect.centery - 10))
+                    """
+
+            draw_button(self.easy_rect, "Easy", (80,120,200), (120,170,255), self.difficulty == Difficulty.EASY)
+            draw_button(self.medium_rect, "Medium", (80,120,200), (120,170,255), self.difficulty == Difficulty.MEDIUM)
+            draw_button(self.hard_rect, "Hard", (80,120,200), (120,170,255), self.difficulty == Difficulty.HARD)
+            draw_button(self.start_rect, "Start Game", (60,180,100), (90,230,140))
+
+            marquee_text = self.hud_font.render("Boost Your Memory", True, (255, 255, 0))
+            self.screen.blit(marquee_text, (self.marquee_x, settings.HEIGHT - 40))
+
+             #isaret
+            exit_text = self.hud_font.render("Press Q to Exit", True, (255, 255, 0))
+            self.screen.blit(exit_text, exit_text.get_rect(center=(settings.WIDTH // 2, self.start_rect.bottom + 40)))
+
+            for x, y, age in self.explosions:
+                emoji_text = self.emoji_font.render("🧠✨", True, (255, 255, 255))
+                self.screen.blit(emoji_text, (x, y))
+                
         if self.state == GameState.PAUSED:
-            pause_text = self.font.render(
-                "PAUSED",
-                True,
-                (255, 255, 0)
-            )
 
-            text_rect = pause_text.get_rect(
-                center=(settings.WIDTH // 2, settings.HEIGHT // 2)
-            )
+            pause_text = self.font.render("PAUSED", True, (255, 255, 0))     
+            menu_text = self.font.render("Press M to return to Main Menu", True, (255, 255, 0))
+            exit_text = self.font.render("Press Q to Exit Game", True, (255, 255, 0))
+       
+            self.screen.blit(pause_text, pause_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 - 80)))
+            self.screen.blit(menu_text, menu_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 10)))
+            self.screen.blit(exit_text, exit_text.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 70)))
 
-            self.screen.blit(pause_text, text_rect)
-        
         # Update the full display
         if self.state == GameState.WON:
 
@@ -417,6 +465,26 @@ class Game:
         pygame.display.flip()
 
     def update(self, dt):
+
+        if self.state == GameState.MENU:
+            self.marquee_x += 120 * dt
+            if self.marquee_x > settings.WIDTH:
+                self.marquee_x = -250
+           
+               
+            self.explosion_timer += dt
+            if self.explosion_timer >= 0.5:
+                x = random.choice([random.randint(30, 180), random.randint(settings.WIDTH - 180, settings.WIDTH - 30)])
+                y = random.randint(80, settings.HEIGHT - 100)
+                self.explosions.append([x, y, 0])
+                self.explosion_timer = 0
+
+            for explosion in self.explosions:
+                explosion[2] += dt
+
+            self.explosions = [e for e in self.explosions if e[2] < 1.0]
+
+            return
         """
         Updates the game logic.
 
@@ -429,7 +497,21 @@ class Game:
         if self.state != GameState.PLAYING:
             return
         mouse_pos = pygame.mouse.get_pos()
+        if self.state == GameState.MENU:
+            self.marquee_x -= 120 * dt
+            if self.marquee_x < -250:
+                self.marquee_x = settings.WIDTH
 
+            self.explosion_timer += dt
+            if self.explosion_timer >= 0.35:
+                self.explosions.append([random.randint(50, settings.WIDTH - 50), random.randint(80, settings.HEIGHT - 120), 0])
+                self.explosion_timer = 0
+
+            for explosion in self.explosions:
+                explosion[2] += dt
+
+            self.explosions = [e for e in self.explosions if e[2] < 1.0]
+            return
         for card in self.board.cards:
             card.is_hovered = card.contains_point(mouse_pos)
               # Only update gameplay while playing
@@ -457,7 +539,8 @@ class Game:
         if self.first_card is not None and self.second_card is not None:
 
             # If the two selected cards match
-            if self.first_card.value == self.second_card.value:
+            # Cards match if their match_value is the same
+            if self.first_card.match_value == self.second_card.match_value:
 
                 # Keep both cards permanently open
                 self.first_card.is_matched = True
@@ -506,7 +589,7 @@ class Game:
         """
 
         # Create a new board with the current grid size
-        self.board = Board(settings.WIDTH,settings.HEIGHT,self.board.rows,self.board.cols)
+        self.board = Board(settings.WIDTH,settings.HEIGHT,self.board.rows,self.board.cols,self.difficulty)
 
         # Reset matching logic
         self.first_card = None
@@ -525,19 +608,15 @@ class Game:
         self.state = GameState.PLAYING
 
     def load_current_level(self):
-        """
-        Loads the board for the current level.
-        """
 
         rows, cols = self.level_manager.get_current_level()
 
-        self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols)
+        self.board = Board(settings.WIDTH, settings.HEIGHT, rows, cols, self.difficulty)
 
         self.first_card = None
         self.second_card = None
         self.board_locked = False
         self.flip_back_start_time = None
-
         self.moves = 0
 
         self.timer = CountdownTimer(self.get_time_for_difficulty())
